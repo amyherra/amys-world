@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Amy's World</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: the clay planet sits dead centre and fills the window. The headline floats above it, flight controls below it. */
+:root {
+  --sky: #D8ECFB; --ink: #24306B; --ink-dim: #4A5590; --plum: #6A4BD0; --leaf: #6FAE5A; --heart: #C9475A; --sun: #FFD166; --white: #FFFFFF; --glass: rgba(255, 255, 255, .72);
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+html, body { height: 100%; overflow: hidden; }
+body { background: var(--sky); color: var(--ink); font-family: var(--body); font-size: 16px; }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--plum); outline-offset: 3px; }
+
+#stage { position: fixed; inset: 0; }
+#world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#markers { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+
+.marker { position: absolute; left: 0; top: 0; opacity: 0; display: flex; align-items: center; justify-content: center; border: 0; background: none; padding: 6px; cursor: pointer; pointer-events: none; }
+.marker .q { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: var(--plum); color: var(--white); font-family: var(--body); font-weight: 600; font-size: 19px; box-shadow: 0 0 0 5px rgba(255, 255, 255, .7), 0 6px 14px rgba(36, 48, 107, .28); animation: bob 1.8s ease-in-out infinite; }
+.marker .name { display: none; align-items: center; min-height: 34px; padding: 0 14px; border-radius: 999px; background: var(--white); color: var(--ink); font-weight: 600; font-size: 14px; white-space: nowrap; box-shadow: 0 4px 12px rgba(36, 48, 107, .18); }
+.marker.found .q { display: none; }
+.marker.found .name { display: flex; }
+@keyframes bob { 50% { transform: translateY(-5px); } }
+
+.hud { position: fixed; z-index: 3; top: 0; left: 0; right: 0; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding-top: calc(12px + env(safe-area-inset-top, 0px)); padding-bottom: 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.back { justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--glass); text-decoration: none; font-weight: 600; font-size: 15px; }
+.back:hover { background: var(--white); }
+.title { margin: 0; font-weight: 500; font-size: 16px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+.score { justify-self: end; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.lamps { display: flex; gap: 5px; }
+.lamp { width: 11px; height: 11px; border-radius: 50%; background: var(--white); box-shadow: inset 0 0 0 2px var(--ink-dim); transition: background .3s, box-shadow .3s; }
+.lamp.on { background: var(--heart); box-shadow: inset 0 0 0 2px var(--heart); }
+
+.tagline { position: fixed; z-index: 2; top: calc(60px + env(safe-area-inset-top, 0px)); left: 0; right: 0; margin: 0; text-align: center; font-weight: 500; font-size: clamp(26px, 3.6vw, 48px); line-height: 1.05; letter-spacing: -.035em; color: var(--ink); pointer-events: none; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#word { display: inline-block; min-width: 4.9em; text-align: left; color: var(--plum); }
+#word.swap { animation: swap .5s cubic-bezier(.2, 1.3, .4, 1) both; }
+@keyframes swap { from { transform: translateY(.3em) rotate(-3deg); } }
+
+.pilot { position: fixed; z-index: 3; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 8px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); pointer-events: none; }
+.pilot-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; pointer-events: auto; }
+.tour { min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--plum); color: var(--white); font-weight: 600; font-size: 15px; cursor: pointer; }
+.tour:hover { background: #573BB5; }
+.bar { height: 6px; border-radius: 999px; background: #E6ECF7; overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 999px; background: var(--plum); transform-origin: left; animation: fill 8s linear both; }
+.card:hover .bar i, .card:focus-within .bar i { animation-play-state: paused; }
+@keyframes fill { from { transform: scaleX(0); } }
+.hint { margin: 0; font-size: 14px; font-weight: 500; color: var(--ink); text-align: center; background: var(--glass); padding: 5px 12px; border-radius: 999px; }
+.keys { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 18px; pointer-events: auto; }
+.group { display: flex; align-items: center; gap: 6px; }
+.group span { font-weight: 600; font-size: 14px; }
+.key { display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 13px; background: var(--white); color: var(--ink); box-shadow: 0 4px 0 #AEC6E2; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.key.down { transform: translateY(3px); box-shadow: 0 1px 0 #AEC6E2; background: #EEE8FF; }
+
+.card { position: fixed; z-index: 4; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); box-sizing: border-box; width: min(540px, calc(100vw - 24px)); max-height: 46%; overflow-y: auto; padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; border-radius: 26px; background: var(--white); color: var(--ink); box-shadow: 0 16px 40px rgba(36, 48, 107, .22); animation: pop .42s cubic-bezier(.2, 1.3, .4, 1) both; }
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.tag { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--ink-dim); }
+.card h2 { margin: 4px 0 0; font-weight: 500; font-size: 28px; line-height: 1.15; letter-spacing: -.025em; text-wrap: balance; }
+.card p.txt { margin: 0; font-size: 16px; line-height: 1.55; font-weight: 400; color: var(--ink-dim); }
+.close { flex: none; width: 44px; height: 44px; margin: -6px -6px 0 0; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.close:hover { background: #EDF3FB; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.act { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; box-sizing: border-box; border: 0; border-radius: 13px; background: var(--plum); color: var(--white); font-weight: 600; font-size: 15px; text-decoration: none; cursor: pointer; }
+.act:hover { background: #573BB5; }
+.act.alt { background: none; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.act.alt:hover { background: #EDF3FB; }
+.email { font-weight: 600; font-size: 18px; overflow-wrap: anywhere; user-select: all; }
+@keyframes pop { from { opacity: 0; transform: translateX(-50%) translateY(24px) scale(.95); } }
+
+#fallback { position: fixed; z-index: 2; inset: 150px 16px auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; max-width: 560px; margin: 0 auto; }
+#fallback button { min-height: 56px; border: 0; border-radius: 14px; background: var(--white); font-weight: 600; cursor: pointer; }
+
+@media (max-width: 759px) {
+  .hud { grid-template-columns: auto 1fr auto; }
+  .title { justify-self: center; font-size: 15px; }
+  .tagline { font-size: 25px; }
+  #word { display: block; min-width: 0; text-align: center; }
+  .back span { display: none; }
+  .back { padding: 0 14px; }
+  .lamps { display: none; }
+  .group span { display: none; }
+  .key { width: 56px; height: 52px; }
+  .keys { gap: 8px 14px; }
+  .card h2 { font-size: 25px; }
+  .card p.txt { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) { .marker .q, .card, #word.swap, .bar i { animation: none; } }
+</style>
+
+
+<div id="stage">
+  <canvas id="world" role="img" aria-label="A small clay planet with blue oceans and green land, a purple plane flying around it, and six places to find."></canvas>
+  <div id="markers"></div>
+</div>
+
+<header class="hud">
+  <a class="back" href="https://amyherreradesign.framer.website/" target="_top" aria-label="Back to Amy's portfolio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg><span>Portfolio</span></a>
+  <h1 class="title">Amy's World</h1>
+  <div class="score" role="status"><span class="lamps" id="lamps" aria-hidden="true"></span><span id="count">FOUND 0/6</span></div>
+</header>
+
+<p class="tagline" aria-label="Designing products that are impactful, delightful, inclusive and intentional">Designing products that are <span id="word" aria-hidden="true">Impactful</span></p>
+
+<div class="pilot" id="pilot">
+  <div class="pilot-top">
+    <p class="hint" id="hint">Fly over a ? to discover it</p>
+    <button class="tour" id="tour" type="button">Take the quick tour</button>
+  </div>
+  <div class="keys" role="group" aria-label="Flight controls">
+    <div class="group"><button class="key" type="button" data-key="left" aria-label="Turn left"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button><button class="key" type="button" data-key="right" aria-label="Turn right"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button><span>Steer</span></div>
+    <div class="group"><button class="key" type="button" data-key="up" aria-label="Go faster"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15l7-7 7 7"></path></svg></button><span>Faster</span></div>
+    <div class="group"><button class="key" type="button" data-key="down" aria-label="Go slower"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l7 7 7-7"></path></svg></button><span>Slower</span></div>
+  </div>
+</div>
+
+<section class="card" id="card" hidden aria-live="polite"></section>
+<div id="fallback" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var PORTFOLIO = 'https://amyherreradesign.framer.website/';
+  var PLACES = [
+    { id: 'home', name: 'Home', title: "Hi, I'm Amy!", text: "I'm a product designer and student at the University of Michigan, passionate about integrating design with code and creating inclusive, innovative user experiences.", links: [{ label: 'About me', href: PORTFOLIO + '#intro' }] },
+    { id: 'workshop', name: 'What I make', title: 'What I make', text: "I've always enjoyed making things: DIY projects, apparel design, graphics, photography and teaching arts & crafts to youth.", links: [{ label: 'See my work', href: PORTFOLIO + '#work' }] },
+    { id: 'tower', name: 'Where I study', title: 'Where I study', text: "Michigan has been home base since 2022. I studied Information Science and Anthropology, and I'm finishing my M.S. in HCI in May 2027.", links: [{ label: 'My education', href: PORTFOLIO + '#education' }] },
+    { id: 'camera', name: 'My photos', title: 'What I photograph', text: 'In my free time I collect pics with my camera, a Sony ZVE-10.', links: [{ label: 'See my photos', href: 'https://www.instagram.com/amherrfotos' }] },
+    { id: 'record', name: 'My music', title: 'What I\'m listening to', text: 'Breathe Deeper by Tame Impala, from The Slow Rush.', links: [{ label: 'Listen on Spotify', href: 'https://open.spotify.com/track/3LbZIhU0smEU5SUnxod4j4' }] },
+    { id: 'mail', name: 'Say hi', title: 'Say hi!', text: 'I would love to hear from you.', email: 'amyrod@umich.edu', links: [{ label: 'LinkedIn', href: 'https://www.linkedin.com/in/amy-herreraa/' }] }
+  ];
+  var found = PLACES.map(function () { return false; });
+  var current = -1, api = null, finaleShown = false, touring = false;
+  var $ = function (id) { return document.getElementById(id); };
+  var card = $('card'), hint = $('hint'), lamps = $('lamps');
+
+  PLACES.forEach(function () { var s = document.createElement('span'); s.className = 'lamp'; lamps.appendChild(s); });
+
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  function linkHtml(l, alt) { return '<a class="act' + (alt ? ' alt' : '') + '" href="' + l.href + '" target="_blank" rel="noopener">' + esc(l.label) + '</a>'; }
+  var closeBtn = '<button class="close" id="close" type="button" aria-label="Close and keep exploring"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>';
+
+  function renderCard(html) {
+    card.innerHTML = html; card.hidden = false; $('pilot').hidden = true;
+    card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+    $('close').onclick = function () { leave(); };
+    var copy = $('copy');
+    if (copy) copy.onclick = function () {
+      var done = function () { copy.textContent = 'Copied!'; };
+      var sel = function () { var r = document.createRange(); r.selectNodeContents($('email')); var w = getSelection(); w.removeAllRanges(); w.addRange(r); copy.textContent = 'Email selected'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText('amyrod@umich.edu').then(done, sel); else sel();
+    };
+  }
+  function showPlace(i) {
+    var p = PLACES[i]; current = i;
+    if (!found[i]) { found[i] = true; update(i); }
+    var n = found.filter(Boolean).length;
+    var body = '<p class="txt">' + esc(p.text) + '</p>';
+    if (p.email) body += '<span class="email" id="email">' + p.email + '</span>';
+    var acts = (p.email ? '<button class="act" id="copy" type="button">Copy my email</button>' : '') + p.links.map(function (l) { return linkHtml(l, !!p.email); }).join('');
+    if (touring) acts = '<button class="act" id="next" type="button">' + (i === 5 ? 'Finish tour' : 'Next stop') + '</button>' + acts.replace('class="act" id="copy"', 'class="act alt" id="copy"').replace(/class="act" href/g, 'class="act alt" href');
+    var tag = touring ? 'QUICK TOUR ' + (i + 1) + ' OF 6' : (n === 6 ? 'ALL 6 FOUND' : 'FOUND ' + n + ' OF 6');
+    var bar = touring ? '<div class="bar" aria-hidden="true"><i id="fill"></i></div>' : '';
+    renderCard('<div class="card-top"><div><p class="tag">' + tag + '</p><h2>' + esc(p.title) + '</h2></div>' + closeBtn + '</div>' + body + '<div class="actions">' + acts + '</div>' + bar);
+    if (touring) {
+      $('next').onclick = nextStop;
+      $('fill').addEventListener('animationend', nextStop);
+    }
+  }
+  function nextStop() {
+    if (!touring) return;
+    if (current >= 5) { leave(); return; }
+    visit(current + 1);
+  }
+  function startTour() { touring = true; visit(0); }
+  function update(i) {
+    var n = found.filter(Boolean).length;
+    $('count').textContent = n === 6 ? 'ALL 6 FOUND' : 'FOUND ' + n + '/6';
+    lamps.children[i].classList.add('on');
+    var m = document.querySelectorAll('.marker')[i];
+    if (m) { m.classList.add('found'); m.setAttribute('aria-label', 'Go to ' + PLACES[i].name); }
+    if (api) api.light(i);
+  }
+  function finale() {
+    finaleShown = true; current = -1;
+    if (api) { api.home(); api.fireworks(); }
+    renderCard('<div class="card-top"><div><p class="tag">ALL 6 FOUND</p><h2>You saw my whole world!</h2></div>' + closeBtn + '</div><p class="txt">Thanks for flying by.</p><div class="actions">' + linkHtml({ label: 'Back to my portfolio', href: PORTFOLIO }) + '</div>');
+  }
+  function leave() {
+    touring = false;
+    var all = found.every(Boolean);
+    card.hidden = true; card.innerHTML = ''; $('pilot').hidden = false;
+    if (all && !finaleShown) { finale(); return; }
+    current = -1; if (api) api.home();
+  }
+  function visit(i) { if (api) api.goTo(i); showPlace(i); }
+
+  // Flight controls: arrow keys, WASD, or the on-screen buttons
+  var input = { left: false, right: false, up: false, down: false };
+  var KEYMAP = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', a: 'left', d: 'right', w: 'up', s: 'down', A: 'left', D: 'right', W: 'up', S: 'down' };
+  function setKey(k, on) {
+    input[k] = on;
+    var el = document.querySelector('.key[data-key="' + k + '"]'); if (el) el.classList.toggle('down', on);
+    if (on) { if (api) api.takeOff(); if (!card.hidden) leave(); }
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !card.hidden) { leave(); return; }
+    if ((e.key === 't' || e.key === 'T') && !touring && !e.metaKey && !e.ctrlKey) { startTour(); return; }
+    var k = KEYMAP[e.key]; if (!k || e.metaKey || e.ctrlKey) return;
+    e.preventDefault(); if (!input[k]) setKey(k, true);
+  });
+  document.addEventListener('keyup', function (e) { var k = KEYMAP[e.key]; if (k) setKey(k, false); });
+  window.addEventListener('blur', function () { Object.keys(input).forEach(function (k) { if (input[k]) setKey(k, false); }); });
+  document.querySelectorAll('.key').forEach(function (b) {
+    var k = b.getAttribute('data-key');
+    b.addEventListener('pointerdown', function (e) { e.preventDefault(); b.setPointerCapture(e.pointerId); setKey(k, true); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { b.addEventListener(t, function () { setKey(k, false); }); });
+  });
+
+  $('tour').onclick = startTour;
+
+  // Designing products that are ...
+  var WORDS = ['Impactful', 'Delightful', 'Inclusive', 'Intentional'], wi = 0, word = $('word');
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setInterval(function () { wi = (wi + 1) % WORDS.length; word.textContent = WORDS[wi]; word.classList.remove('swap'); void word.offsetWidth; word.classList.add('swap'); }, 2400);
+
+  function fallback() {
+    var f = $('fallback'); f.hidden = false; $('pilot').hidden = true;
+    PLACES.forEach(function (p, i) { var b = document.createElement('button'); b.type = 'button'; b.textContent = p.name; b.onclick = function () { showPlace(i); }; f.appendChild(b); });
+  }
+
+  // Markers
+  var markerEls = PLACES.map(function (p, i) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'marker';
+    b.setAttribute('aria-label', 'Discover a hidden place');
+    b.innerHTML = '<span class="q" aria-hidden="true">?</span><span class="name">' + esc(p.name) + '</span>';
+    b.onclick = function () { visit(i); };
+    $('markers').appendChild(b); return b;
+  });
+
+  if (typeof THREE === 'undefined') { fallback(); return; }
+
+  /* ---------- World ---------- */
+  var T = THREE, TAU = Math.PI * 2, R = 2, LAT = .35, VIEW_E = .9;
+  var PLANE_E = .46, ALT = .46, TRIGGER = .3;               // where the plane hovers, and how close counts as found
+  var CRUISE = .3, FAST = .75, SLOW = .1, TURN = 2;
+  var COL = { walls: '#FFF6E6', roof: '#E8705F', teal: '#58B8B0', sun: '#F7C65B', dark: '#39406E', wood: '#B98A5C', glass: '#BDE0F5', plum: '#7557D8', heart: '#C9475A', trunk: '#9A7E5C', leaf: ['#6FAE5A', '#7FBF68', '#5F9E52', '#8CC873'], flower: ['#FFFFFF', '#F7C65B', '#F49BB0'] };
+  var SITES = [0, 1, 2, 3, 4, 5].map(function (i) { return i / 6 * TAU; });
+  var V = function (x, y, z) { return new T.Vector3(x, y, z); };
+  var dirOf = function (lat, lon) { return V(Math.sin(lon) * Math.cos(lat), Math.sin(lat), Math.cos(lon) * Math.cos(lat)); };
+  var siteDirs = SITES.map(function (l) { return dirOf(LAT, l); }), POLE = V(0, 1, 0);
+  var smooth = function (a, b, x) { var t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  var clamp01 = function (x) { return Math.min(1, Math.max(0, x)); };
+  var backOut = function (t) { var c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+  function rng(seed) { return function () { seed = (seed + 0x6D2B79F5) | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  function siteDist(d) { var m = 9; for (var i = 0; i < 6; i++) m = Math.min(m, d.angleTo(siteDirs[i])); return m; }
+  function landVal(d) {
+    var n = Math.sin(d.x * 2.1 + 1.3) * Math.cos(d.y * 2.7 + .4) + .6 * Math.sin(d.z * 3.7 + d.x * 1.9) + .4 * Math.cos(d.y * 5.3 - d.z * 4.1) + .2 * Math.sin(d.x * 9 + d.z * 7 + d.y * 6);
+    var isl = 0; for (var i = 0; i < 6; i++) { var a = d.angleTo(siteDirs[i]) / .3; isl = Math.max(isl, Math.exp(-a * a)); }
+    var p = d.angleTo(POLE) / .24;
+    return n * .46 + 1.5 * isl + 1.2 * Math.exp(-p * p) - .27;
+  }
+  function radiusAt(d) { var m = landVal(d); return R + .1 * smooth(0, .14, m) + .014 * smooth(.2, .6, m) * Math.sin(d.x * 8 + d.y * 7) * smooth(.3, .5, siteDist(d)); }
+
+  function mat(color, extra) { return new T.MeshStandardMaterial(Object.assign({ color: color, roughness: .62, metalness: 0 }, extra || {})); }
+  function add(parent, geo, color, pos, o) {
+    o = o || {};
+    var m = new T.Mesh(geo, mat(color)); m.castShadow = o.cast !== false; m.receiveShadow = true;
+    if (pos) m.position.set(pos[0], pos[1], pos[2]);
+    if (o.rot) m.rotation.set(o.rot[0], o.rot[1], o.rot[2]);
+    parent.add(m); return m;
+  }
+  // Soft-edged block, so everything reads as clay
+  function box(w, h, d) {
+    var b = Math.min(.018, Math.min(w, h, d) * .32), s = new T.Shape(), x = w / 2 - b, y = h / 2 - b;
+    s.moveTo(-x, -y); s.lineTo(x, -y); s.lineTo(x, y); s.lineTo(-x, y); s.closePath();
+    var g = new T.ExtrudeGeometry(s, { depth: Math.max(.001, d - 2 * b), bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 3, curveSegments: 4 });
+    g.translate(0, 0, -(d - 2 * b) / 2); return g;
+  }
+  var cyl = function (a, b, h, n) { return new T.CylinderGeometry(a, b, h, n || 18); };
+  function prism(w, h, d) { var s = new T.Shape(); s.moveTo(-w / 2, 0); s.lineTo(w / 2, 0); s.lineTo(0, h); s.closePath(); var g = new T.ExtrudeGeometry(s, { depth: d - .03, bevelEnabled: true, bevelThickness: .015, bevelSize: .015, bevelSegments: 3 }); g.translate(0, 0, -(d - .03) / 2); return g; }
+  function heart(scale) {
+    var g = new T.Group(), c = COL.heart;
+    add(g, new T.SphereGeometry(.105, 24, 18), c, [-.078, .02, 0]);
+    add(g, new T.SphereGeometry(.105, 24, 18), c, [.078, .02, 0]);
+    var tip = new T.ConeGeometry(.158, .23, 28); add(g, tip, c, [0, -.095, 0], { rot: [Math.PI, 0, 0] });
+    g.scale.setScalar(scale); return g;
+  }
+
+  function buildHome() {
+    var g = new T.Group();
+    add(g, box(.46, .27, .36), COL.walls, [0, .135, 0]);
+    add(g, prism(.56, .22, .42), COL.roof, [0, .27, 0]);
+    add(g, box(.07, .15, .07), COL.wood, [.13, .42, -.05]);
+    add(g, box(.09, .16, .016), COL.teal, [-.09, .08, .184], { cast: false });
+    add(g, box(.11, .09, .016), COL.glass, [.11, .15, .184], { cast: false });
+    return { group: g, top: .62 };
+  }
+  function buildWorkshop() {
+    var g = new T.Group();
+    add(g, box(.72, .28, .42), COL.walls, [0, .14, 0]);
+    for (var i = 0; i < 3; i++) { var s = new T.Shape(); s.moveTo(0, 0); s.lineTo(.23, 0); s.lineTo(0, .14); s.closePath(); var t = new T.ExtrudeGeometry(s, { depth: .4, bevelEnabled: true, bevelThickness: .01, bevelSize: .008, bevelSegments: 2 }); t.translate(0, 0, -.2); add(g, t, i === 1 ? COL.sun : COL.teal, [-.35 + i * .24, .28, 0]); }
+    add(g, box(.44, .16, .016), COL.glass, [-.08, .13, .214], { cast: false });
+    add(g, box(.09, .17, .016), COL.roof, [.25, .085, .214], { cast: false });
+    var p = new T.Group(); p.position.set(.5, 0, .1); p.rotation.set(-.1, -.3, 0); g.add(p);
+    add(p, box(.19, .38, .03), COL.dark, [0, .19, 0]);
+    add(p, box(.16, .33, .008), '#FFFFFF', [0, .19, .017], { cast: false });
+    add(p, box(.12, .08, .008), COL.roof, [0, .27, .021], { cast: false });
+    add(p, box(.12, .02, .008), COL.sun, [0, .2, .021], { cast: false });
+    add(p, box(.12, .05, .008), COL.teal, [0, .11, .021], { cast: false });
+    return { group: g, top: .56 };
+  }
+  function buildTower() {
+    var g = new T.Group();
+    add(g, box(.5, .16, .34), COL.walls, [0, .08, 0]);
+    add(g, box(.56, .035, .4), COL.teal, [0, .175, 0]);
+    add(g, box(.2, .74, .2), COL.walls, [0, .37, 0]);
+    add(g, box(.24, .03, .24), COL.teal, [0, .61, 0]);
+    add(g, box(.17, .1, .17), COL.roof, [0, .79, 0]);
+    add(g, box(.2, .025, .2), COL.teal, [0, .84, 0]);
+    add(g, new T.ConeGeometry(.09, .16, 18), COL.sun, [0, .93, 0]);
+    add(g, cyl(.074, .074, .012, 28), '#FFFFFF', [0, .71, .104], { rot: [Math.PI / 2, 0, 0], cast: false });
+    var big = add(g, box(.008, .054, .005), COL.dark, [0, .733, .112], { cast: false });
+    add(g, box(.008, .04, .005), COL.dark, [.016, .72, .112], { cast: false, rot: [0, 0, -1.1] });
+    add(g, box(.08, .13, .016), COL.dark, [0, .065, .174], { cast: false });
+    return { group: g, top: 1.04, tick: function (t) { big.rotation.z = -t * .3; big.position.set(Math.sin(t * .3) * .023, .71 + Math.cos(t * .3) * .023, .112); } };
+  }
+  function buildCamera() {
+    var g = new T.Group();
+    [[-.13, .1], [.13, .1], [0, -.15]].forEach(function (l) { var m = add(g, cyl(.013, .013, .36, 8), COL.wood, [l[0], .16, l[1]]); m.lookAt(V(0, .36, 0).add(g.position)); m.rotateX(Math.PI / 2); });
+    add(g, box(.04, .1, .04), COL.dark, [0, .34, 0]);
+    var c = new T.Group(); c.position.y = .5; g.add(c);
+    add(c, box(.44, .28, .2), COL.dark, [0, 0, 0]);
+    add(c, box(.16, .06, .12), COL.dark, [-.1, .16, 0]);
+    add(c, cyl(.03, .03, .03, 14), COL.roof, [.13, .155, 0]);
+    add(c, cyl(.105, .115, .1, 26), COL.walls, [.04, -.01, .14], { rot: [Math.PI / 2, 0, 0] });
+    add(c, cyl(.08, .08, .02, 26), COL.glass, [.04, -.01, .195], { rot: [Math.PI / 2, 0, 0], cast: false });
+    return { group: g, top: .84 };
+  }
+  function buildRecord() {
+    var g = new T.Group();
+    add(g, box(.68, .13, .56), COL.wood, [0, .065, 0]);
+    var disc = new T.Group(); disc.position.set(-.08, .14, 0); g.add(disc);
+    add(disc, cyl(.235, .235, .02, 40), COL.dark, [0, .01, 0]);
+    add(disc, cyl(.08, .08, .024, 24), COL.roof, [0, .012, 0]);
+    add(disc, box(.04, .026, .016), COL.sun, [.05, .016, 0]);
+    add(g, cyl(.03, .036, .06, 14), COL.walls, [.27, .16, -.19]);
+    var arm = new T.Group(); arm.position.set(.27, .2, -.19); arm.rotation.y = -.62; g.add(arm);
+    add(arm, box(.018, .018, .34), COL.walls, [0, 0, .17]);
+    add(arm, box(.03, .022, .05), COL.dark, [0, -.01, .35]);
+    return { group: g, top: .5, tick: function (t) { disc.rotation.y = -t * 1.4; } };
+  }
+  function buildMail() {
+    var g = new T.Group();
+    add(g, box(.05, .3, .05), COL.wood, [0, .15, 0]);
+    var b = new T.Group(); b.position.y = .3; g.add(b);
+    var sh = new T.Shape(); sh.moveTo(-.13, 0); sh.lineTo(.13, 0); sh.lineTo(.13, .1); sh.absarc(0, .1, .13, 0, Math.PI, false); sh.lineTo(-.13, 0);
+    add(b, new T.ExtrudeGeometry(sh, { depth: .46, bevelEnabled: false, curveSegments: 20 }), COL.teal, [0, 0, -.23]);
+    add(b, new T.ExtrudeGeometry(sh, { depth: .016, bevelEnabled: false, curveSegments: 20 }), COL.walls, [0, 0, .23]);
+    add(g, box(.014, .2, .014), COL.dark, [.14, .46, .04]);
+    add(g, box(.012, .075, .1), COL.roof, [.14, .525, .09]);
+    var env = new T.Group(); env.position.set(-.03, .78, .04); env.rotation.set(.1, .25, .14); g.add(env);
+    add(env, box(.24, .16, .016), '#FFFFFF', [0, 0, 0]);
+    var fl = new T.Shape(); fl.moveTo(-.12, .08); fl.lineTo(.12, .08); fl.lineTo(0, -.02); fl.closePath();
+    add(env, new T.ShapeGeometry(fl), COL.sun, [0, 0, .01], { cast: false });
+    return { group: g, top: .94, tick: function (t) { env.position.y = .78 + Math.sin(t * 1.3) * .028; env.rotation.z = .14 + Math.sin(t * .9) * .06; } };
+  }
+  function buildPlane() {
+    // Nose points along +z
+    var g = new T.Group(), c = COL.plum;
+    add(g, new T.CapsuleGeometry(.075, .3, 10, 20), c, null, { rot: [Math.PI / 2, 0, 0] });
+    add(g, box(.66, .018, .15), c, [0, -.01, .02]);
+    add(g, box(.26, .014, .08), c, [0, .02, -.2]);
+    add(g, box(.014, .12, .09), c, [0, .08, -.2]);
+    add(g, new T.SphereGeometry(.052, 16, 12), COL.glass, [0, .06, .08]);
+    add(g, new T.SphereGeometry(.03, 12, 10), COL.sun, [0, 0, .235]);
+    var prop = new T.Group(); prop.position.z = .25; g.add(prop);
+    add(prop, box(.2, .02, .008), COL.walls, null, { cast: false });
+    g.userData.prop = prop;
+    return g;
+  }
+
+  function basis(dir) {
+    var up = dir.clone().normalize(), south = V(0, -1, 0).addScaledVector(up, up.y).normalize(), right = new T.Vector3().crossVectors(up, south).normalize();
+    return new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(right, up, south));
+  }
+  function merge(list) {
+    var pos = [], nor = [];
+    list.forEach(function (g) { g = g.index ? g.toNonIndexed() : g; pos.push.apply(pos, g.attributes.position.array); nor.push.apply(nor, g.attributes.normal.array); });
+    var o = new T.BufferGeometry(); o.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); o.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); return o;
+  }
+  function scatter(world) {
+    var rnd = rng(11), pts = [];
+    for (var i = 0; i < 1600 && pts.length < 115; i++) {
+      var y = 1 - 2 * (i + .5) / 1600, r = Math.sqrt(1 - y * y), a = i * 2.39996 + rnd() * .2, d = V(Math.cos(a) * r, y, Math.sin(a) * r).normalize();
+      if (landVal(d) > .16 && siteDist(d) > .34 && d.angleTo(POLE) > .17 && rnd() < .7) pts.push(d);
+    }
+    function stick(h) { var c = cyl(.018, .024, h, 8); c.translate(0, h / 2, 0); return c; }
+    var crown = new T.IcosahedronGeometry(.1, 2); crown.translate(0, .24, 0);
+    var tree = merge([crown, stick(.17)]);
+    var parts = []; for (i = 0; i < 6; i++) { var a2 = i / 6 * TAU, p = new T.IcosahedronGeometry(.028, 1); p.scale(1, .5, 1); p.translate(Math.cos(a2) * .034, .022, Math.sin(a2) * .034); parts.push(p); }
+    var flower = merge(parts);
+    function place(geo, list, colors, a, b) {
+      var im = new T.InstancedMesh(geo, new T.MeshStandardMaterial({ color: '#fff', roughness: .62 }), list.length), m = new T.Matrix4(), c = new T.Color();
+      im.castShadow = true; im.receiveShadow = true;
+      list.forEach(function (d, k) {
+        var q = basis(d).multiply(new T.Quaternion().setFromAxisAngle(V(0, 1, 0), rnd() * TAU)), s = a + rnd() * (b - a);
+        m.compose(d.clone().multiplyScalar(radiusAt(d) - .005), q, V(s, s, s)); im.setMatrixAt(k, m); im.setColorAt(k, c.set(colors[Math.floor(rnd() * colors.length)]));
+      });
+      world.add(im); return im;
+    }
+    return [
+      place(tree, pts.filter(function (_, k) { return k % 3 !== 2; }), COL.leaf, .7, 1.15),
+      place(flower, pts.filter(function (_, k) { return k % 3 === 2; }), COL.flower, 1, 1.6)
+    ];
+  }
+
+  function mount(canvas) {
+    var host = canvas.parentElement, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches, renderer;
+    try { renderer = new T.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true }); } catch (e) { return null; }
+    renderer.setClearColor(0x000000, 0);
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+    var scene = new T.Scene(), camera = new T.PerspectiveCamera(26, 1, .1, 120);
+    camera.position.z = 12;
+
+    scene.add(new T.HemisphereLight('#FFFFFF', '#9FB6E8', 1.9));
+    var fill = new T.DirectionalLight('#FFFFFF', .7); fill.position.set(2, 1, 10); scene.add(fill);
+    var sun = new T.DirectionalLight('#FFF4E2', 2.1); sun.position.set(-4.5, 7, 6.5); sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -3.4, right: 3.4, top: 3.4, bottom: -3.4, near: 1, far: 20 }); sun.shadow.bias = -.0005; sun.shadow.normalBias = .02; sun.shadow.radius = 5;
+    scene.add(sun);
+
+    var world = new T.Group(); scene.add(world);
+
+    // Planet: one smooth clay ball with raised land
+    var geo = new T.SphereGeometry(1, 420, 300), pos = geo.attributes.position, colors = new Float32Array(pos.count * 3), v = V(0, 0, 0), tmp0 = new T.Color();
+    var deep = new T.Color('#3F5FCB'), shallow = new T.Color('#6F96EA'), low = new T.Color('#8FC672'), high = new T.Color('#6BA85A'), col = new T.Color();
+    for (var i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).normalize(); var m = landVal(v), r = radiusAt(v);
+      pos.setXYZ(i, v.x * r, v.y * r, v.z * r);
+      col.copy(deep).lerp(shallow, smooth(-.2, -.01, m)); if (m > -.03) { tmp0.copy(low).lerp(high, smooth(.15, .7, m)); col.lerp(tmp0, smooth(-.03, .04, m)); }
+      colors.set([col.r, col.g, col.b], i * 3);
+    }
+    geo.setAttribute('color', new T.BufferAttribute(colors, 3)); geo.computeVertexNormals();
+    var planet = new T.Mesh(geo, new T.MeshStandardMaterial({ vertexColors: true, roughness: .56 })); planet.receiveShadow = true; planet.castShadow = true; world.add(planet);
+
+    var builders = [buildHome, buildWorkshop, buildTower, buildCamera, buildRecord, buildMail];
+    var sites = builders.map(function (b, i) {
+      var s = b(), d = siteDirs[i];
+      s.group.position.copy(d).multiplyScalar(radiusAt(d) - .004); s.group.quaternion.copy(basis(d)); s.group.scale.setScalar(.001);
+      s.group.traverse(function (o) { if (o.isMesh) o.userData.stop = i; });
+      s.anchor = new T.Object3D(); s.anchor.position.y = s.top + .28; s.group.add(s.anchor);
+      s.badge = heart(.42); s.badge.position.y = s.top + .1; s.badge.scale.setScalar(.001); s.group.add(s.badge);
+      s.on = false; s.pop = 0;
+      world.add(s.group); return s;
+    });
+    var hitList = sites.map(function (s) { return s.group; });
+    var extras = scatter(world); extras.forEach(function (e) { e.visible = false; });
+
+    // Heart on a stalk at the top of the world
+    var top = new T.Group(); top.position.copy(POLE).multiplyScalar(radiusAt(POLE) - .01); world.add(top);
+    add(top, cyl(.018, .026, .34, 10), COL.leaf[0], [0, .17, 0]);
+    var bigHeart = heart(1.15); bigHeart.position.y = .46; top.add(bigHeart); top.scale.setScalar(.001);
+
+    // Clouds drift with the world
+    var clouds = new T.Group(); world.add(clouds);
+    var cm = mat('#FFFFFF', { roughness: .75 }), cr = rng(9), cloudList = [];
+    for (i = 0; i < 9; i++) {
+      var cg = new T.Group(), dir = V(cr() * 2 - 1, cr() * 1.5 - .75, cr() * 2 - 1).normalize();
+      [[0, 0, 0, .13], [.14, -.02, .02, .095], [-.13, -.03, 0, .085]].forEach(function (p) { var me = new T.Mesh(new T.SphereGeometry(p[3], 18, 14), cm); me.position.set(p[0], p[1], p[2]); me.scale.y = .76; me.castShadow = true; cg.add(me); });
+      cg.position.copy(dir).multiplyScalar(2.52); cg.quaternion.copy(basis(dir)); cg.scale.setScalar(.001); clouds.add(cg); cloudList.push(cg);
+    }
+
+    // Plane and its trail
+    var plane = buildPlane(); plane.scale.setScalar(.001); scene.add(plane);
+    var N = V(0, Math.sin(PLANE_E), Math.cos(PLANE_E));
+    var E1 = V(1, 0, 0), E2 = new T.Vector3().crossVectors(N, E1).normalize();
+    var puffs = [], puffGeo = new T.SphereGeometry(.05, 12, 10), puffMat = mat('#FFFFFF', { roughness: .8 }), pi = 0, puffClock = 0;
+    for (i = 0; i < 26; i++) { var pf = new T.Mesh(puffGeo, puffMat); pf.visible = false; pf.userData.life = 0; world.add(pf); puffs.push(pf); }
+
+    // Confetti
+    var FW = 260, fwPos = new Float32Array(FW * 3), fwCol = new Float32Array(FW * 3), fwVel = [], fwGeo = new T.BufferGeometry();
+    fwGeo.setAttribute('position', new T.BufferAttribute(fwPos, 3)); fwGeo.setAttribute('color', new T.BufferAttribute(fwCol, 3));
+    var fwMat = new T.PointsMaterial({ size: .1, vertexColors: true, transparent: true, opacity: 0, depthWrite: false });
+    var fw = new T.Points(fwGeo, fwMat); fw.frustumCulled = false; scene.add(fw); var fwT = -1;
+    function fireworks() {
+      st.party = 3;
+      if (reduced) return;
+      var cols = ['#C9475A', '#7557D8', '#F7C65B', '#58B8B0', '#FFFFFF'].map(function (c) { return new T.Color(c); }), r2 = rng(Math.floor(performance.now()));
+      for (var n = 0; n < FW; n++) {
+        var a = r2() * TAU, u = r2() * 2 - 1, q = Math.sqrt(1 - u * u), sp = 2 + r2() * 2.2;
+        fwPos.set([0, 2.6, .8], n * 3); fwVel[n] = [q * Math.cos(a) * sp, u * sp * .6 + 1.4, q * Math.sin(a) * sp * .3];
+        var c = cols[n % 5]; fwCol.set([c.r, c.g, c.b], n * 3);
+      }
+      fwGeo.attributes.color.needsUpdate = true; fwT = 0;
+    }
+
+    var Qx = new T.Quaternion(), Qy = new T.Quaternion(), X = V(1, 0, 0), Y = V(0, 1, 0);
+    function orient(p, y, out) { Qx.setFromAxisAngle(X, p); Qy.setFromAxisAngle(Y, y); return out.copy(Qx).multiply(Qy); }
+    var Q = orient(LAT - PLANE_E, .85, new T.Quaternion()), Qt = new T.Quaternion(), step = new T.Quaternion();
+    var st = { w: 1, h: 1, stop: -1, sx: 0, sy: 0, z: 12, tsx: 0, tsy: 0, tz: 12, t: 0, p: reduced ? 1 : 0, done: false, drag: false, moved: 0, heading: 0, bank: 0, speed: CRUISE * .5, flying: false, tween: false, party: 0 };
+    var clock = new T.Clock();
+    var dist = function (fr) { return 4 / (fr * 2 * Math.tan(T.MathUtils.degToRad(13))); };
+    function layout() {
+      var a = st.w / st.h, ph = st.w < 760;
+      st.tsx = 0;
+      st.tsy = st.stop >= 0 ? (ph ? -.02 : .11) : (ph ? .03 : .075);
+      st.tz = dist(Math.min(ph ? .4 : .64, a * .74));
+    }
+    function size() {
+      var r = host.getBoundingClientRect(); st.w = Math.max(1, r.width); st.h = Math.max(1, r.height);
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(st.w, st.h, false); camera.aspect = st.w / st.h; layout();
+    }
+    new ResizeObserver(size).observe(host); size();
+    st.sx = st.tsx; st.sy = st.tsy; st.z = st.tz * 1.2;
+
+    function goTo(i) { st.stop = i; orient(LAT - VIEW_E, -SITES[i], Qt); st.tween = true; layout(); }
+    function home() { st.stop = -1; st.tween = false; layout(); }
+
+    var ray = new T.Raycaster(), ndc = new T.Vector2();
+    function pick(e) {
+      var r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+      var h = ray.intersectObjects(hitList, true).find(function (x) { return x.object.userData.stop !== undefined; });
+      if (!h) return -1; var b = ray.intersectObject(planet)[0]; return b && b.distance < h.distance ? -1 : h.object.userData.stop;
+    }
+    var lx = 0, ly = 0;
+    canvas.addEventListener('pointerdown', function (e) { if (!st.done) return; st.drag = true; st.moved = 0; lx = e.clientX; ly = e.clientY; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = 'grabbing'; });
+    canvas.addEventListener('pointermove', function (e) {
+      if (st.drag) {
+        var dx = e.clientX - lx, dy = e.clientY - ly, was = st.moved; st.moved += Math.abs(dx) + Math.abs(dy);
+        if (was < 8 && st.moved >= 8 && current >= 0) leave();
+        if (st.moved >= 8) { step.setFromAxisAngle(Y, dx * .005); Q.premultiply(step); step.setFromAxisAngle(X, dy * .005); Q.premultiply(step); }
+        lx = e.clientX; ly = e.clientY; return;
+      }
+      if (st.done) canvas.style.cursor = pick(e) >= 0 ? 'pointer' : 'grab';
+    });
+    function up(e) { if (!st.drag) return; st.drag = false; canvas.style.cursor = 'grab'; if (st.moved < 8) { var i = pick(e); if (i >= 0) visit(i); } }
+    canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+
+    var wp = V(0, 0, 0), np = V(0, 0, 0), camDir = V(0, 0, 0), f = V(0, 0, 0), axis = V(0, 0, 0), right = V(0, 0, 0), tmp = V(0, 0, 0), mtx = new T.Matrix4(), qp = new T.Quaternion(), qr = new T.Quaternion(), Zax = V(0, 0, 1);
+    function frame() {
+      requestAnimationFrame(frame);
+      if (document.hidden) return;
+      var dt = Math.min(clock.getDelta(), .05); st.t += dt;
+      if (st.p < 1) st.p = Math.min(1, st.p + dt / 1.8);
+      var p = st.p;
+      world.scale.setScalar(.72 + .28 * backOut(clamp01(p / .5)));
+      sites.forEach(function (s, i) { s.group.scale.setScalar(Math.max(.001, 1.2 * backOut(clamp01((p - .3 - i * .05) / .3)))); });
+      extras.forEach(function (e) { e.visible = p > .4; });
+      cloudList.forEach(function (c, i) { c.scale.setScalar(Math.max(.001, backOut(clamp01((p - .5 - i * .02) / .25)))); });
+      top.scale.setScalar(Math.max(.001, backOut(clamp01((p - .55) / .3))));
+      plane.scale.setScalar(Math.max(.001, .8 * backOut(clamp01((p - .7) / .3))));
+      st.done = p >= 1;
+
+      // Flight: the plane holds its spot in the middle and the world turns beneath it
+      var paused = st.stop >= 0 || st.drag || !st.done;
+      var turn = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+      var target = paused ? 0 : (input.up ? FAST : input.down ? SLOW : (st.flying ? CRUISE : CRUISE * .5));
+      st.speed += (target - st.speed) * (1 - Math.exp(-dt * 3));
+      if (!paused) st.heading += turn * TURN * dt;
+      st.bank += (turn * .6 - st.bank) * (1 - Math.exp(-dt * 6));
+      f.copy(E1).multiplyScalar(Math.cos(st.heading)).addScaledVector(E2, -Math.sin(st.heading)).normalize();
+      if (reduced && !st.flying) st.speed = 0;
+      if (st.speed > .001) { axis.crossVectors(N, f).normalize(); step.setFromAxisAngle(axis, -st.speed * dt); Q.premultiply(step); }
+      if (st.tween) Q.slerp(Qt, 1 - Math.exp(-dt * 3.2));
+      world.quaternion.copy(Q);
+
+      plane.position.copy(N).multiplyScalar(R + ALT + Math.sin(st.t * 1.6) * .018);
+      right.crossVectors(N, f).normalize();
+      mtx.makeBasis(right, N, f); qp.setFromRotationMatrix(mtx); qr.setFromAxisAngle(Zax, st.bank);
+      plane.quaternion.copy(qp).multiply(qr);
+      plane.userData.prop.rotation.z = st.t * 24;
+
+      // Contrail, left in the world so it stays behind the plane
+      puffClock += dt;
+      if (!paused && puffClock > .14 && st.speed > .08) {
+        puffClock = 0; var pf = puffs[pi = (pi + 1) % puffs.length];
+        tmp.copy(plane.position).addScaledVector(f, -.26); world.worldToLocal(tmp); pf.position.copy(tmp); pf.userData.life = 1; pf.visible = true;
+      }
+      puffs.forEach(function (x) { if (x.userData.life > 0) { x.userData.life -= dt * .7; x.scale.setScalar(Math.max(.01, x.userData.life * 1.1)); if (x.userData.life <= 0) x.visible = false; } });
+
+      // Flying over an undiscovered place opens it
+      if (st.flying && st.stop < 0 && current < 0 && !st.drag) {
+        for (var i = 0; i < 6; i++) if (!found[i]) { tmp.copy(siteDirs[i]).applyQuaternion(Q); if (tmp.angleTo(N) < TRIGGER) { visit(i); break; } }
+      }
+
+      var kk = 1 - Math.exp(-dt * 3.2); st.sx += (st.tsx - st.sx) * kk; st.sy += (st.tsy - st.sy) * kk; st.z += (st.tz - st.z) * kk;
+      camera.position.z = st.z; camera.setViewOffset(st.w, st.h, -st.sx * st.w, -st.sy * st.h, st.w, st.h);
+
+      sites.forEach(function (s) {
+        if (s.tick) s.tick(st.t);
+        if (s.on && s.pop < 1) s.pop = Math.min(1, s.pop + dt * 1.8);
+        if (s.on) { s.badge.scale.setScalar(Math.max(.001, .42 * backOut(s.pop))); s.badge.rotation.y = st.t * 1.2; }
+      });
+      if (st.party > 0) { st.party -= dt; bigHeart.scale.setScalar(1.15 + .28 * Math.abs(Math.sin(st.t * 5)) * clamp01(st.party)); }
+
+      if (fwT >= 0) {
+        fwT += dt; var a2 = fwGeo.attributes.position.array;
+        for (var n = 0; n < FW; n++) { var vv = fwVel[n]; a2[n * 3] += vv[0] * dt; a2[n * 3 + 1] += (vv[1] - fwT * 2.4) * dt; a2[n * 3 + 2] += vv[2] * dt; }
+        fwGeo.attributes.position.needsUpdate = true; fwMat.opacity = clamp01(2.2 - fwT * .8);
+        if (fwT > 2.8) { fwT = -1; fwMat.opacity = 0; }
+      }
+      renderer.render(scene, camera);
+
+      camDir.copy(camera.position).normalize();
+      markerEls.forEach(function (el, i) {
+        sites[i].anchor.getWorldPosition(wp); np.copy(wp).normalize();
+        var face = np.dot(camDir);
+        wp.project(camera);
+        var my = (1 - wp.y) / 2 * st.h, vis = st.done && face > .12 && st.stop !== i && my > 150;
+        el.style.transform = 'translate(' + ((wp.x + 1) / 2 * st.w).toFixed(1) + 'px,' + ((1 - wp.y) / 2 * st.h).toFixed(1) + 'px) translate(-50%,-100%)';
+        el.style.opacity = vis ? String(clamp01((face - .12) * 6)) : '0';
+        el.style.pointerEvents = vis ? 'auto' : 'none'; el.tabIndex = vis ? 0 : -1;
+      });
+    }
+    frame();
+    return { goTo: goTo, home: home, fireworks: fireworks, light: function (i) { sites[i].on = true; }, takeOff: function () { st.flying = true; } };
+  }
+
+  api = mount($('world'));
+  if (!api) fallback();
+})();
+</script>
+</body>
+</html>
